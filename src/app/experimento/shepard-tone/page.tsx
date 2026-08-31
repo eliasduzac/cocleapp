@@ -23,7 +23,7 @@ export default function ShepardTonePage() {
           El Tono de Shepard
         </h1>
         <p className="text-slate-300 text-sm sm:text-base">
-          Conocido popularmente como el equivalente auditivo a la "Escalera de Escher".
+          Conocido popularmente como el equivalente auditivo a la &quot;Escalera de Escher&quot;.
         </p>
       </div>
 
