@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
-import { Headphones, Waves, Sparkles, Github } from "lucide-react";
+import { Headphones, Waves, Sparkles } from "lucide-react";
 import "./globals.css";
 
 const geistSans = Geist({
