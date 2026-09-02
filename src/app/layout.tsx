@@ -2,13 +2,20 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Link from "next/link";
 import { Volume2, Sparkles } from "lucide-react";
+import PanicButton from "@/components/PanicButton";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("http://localhost:3000"), // o tu dominio final en producción
   title: "Cocleapp | EMDC audio",
   description: "Laboratorio Interactivo de Psicoacústica",
+  icons: {
+    icon: "/icon-192.png",
+    shortcut: "/icon-192.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -26,7 +33,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${inter.className} bg-slate-950 text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-slate-950`}>
+      <body className={`${inter.className} bg-slate-950 text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-slate-950 relative`}>
         {/* Banner Superior de Salud Auditiva */}
         <div className="bg-slate-900/90 border-b border-slate-800/80 py-1.5 px-4 text-center text-xs text-slate-300 flex items-center justify-center gap-2 sticky top-0 z-50 backdrop-blur-sm">
           <Volume2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
@@ -90,6 +97,9 @@ export default function RootLayout({
 
         {/* Contenido principal inyectado desde page.tsx */}
         <main>{children}</main>
+
+        {/* Botón de pánico flotante global */}
+        <PanicButton />
       </body>
     </html>
   );
