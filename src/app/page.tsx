@@ -12,7 +12,8 @@ import {
   Waves,
   Music,
   Clock,
-  Compass
+  Compass,
+  Move3d
 } from "lucide-react";
 
 export default function Home() {
@@ -42,6 +43,15 @@ export default function Home() {
         "Analizá en un gráfico espectral (Frecuencia vs Amplitud) cómo un enmascarador eleva el umbral de audición de tonos adyacentes.",
       icon: Volume2,
       href: "/experimento/enmascaramiento",
+      active: true,
+    },
+    {
+      id: "timbre-duracion",
+      title: "Timbre y Duración Subjetiva",
+      description:
+        "Navegá el espacio timbríco 3D de John Grey (1977) y comprobá cómo la complejidad espectral y la densidad sonoras alteran la percepción del tiempo (Freiberg).",
+      icon: Move3d,
+      href: "/experimento/timbre-duracion",
       active: true,
     },
     {
@@ -122,6 +132,13 @@ export default function Home() {
       note: "Referencia fundamental sobre bandas críticas, enmascaramiento y rugosidad auditiva.",
     },
     {
+      authors: "Grey, J. M.",
+      year: "1977",
+      title: "Multidimensional perceptual scaling of musical t送mbres",
+      publisher: "The Journal of the Acoustical Society of America, 61(5), 1270-1277",
+      note: "Estudio pionero en el mapeo tridimensional del timbre instrumental mediante MDS.",
+    },
+    {
       authors: "Shepard, R. N.",
       year: "1964",
       title: "Circularity in Judgments of Relative Pitch",
@@ -134,13 +151,6 @@ export default function Home() {
       title: "An Introduction to the Psychology of Hearing",
       publisher: "Brill / Emerald Group (6th ed.)",
       note: "Texto clásico sobre la neurofisiología periférica y central de la audición.",
-    },
-    {
-      authors: "Hartmann, W. M.",
-      year: "1998",
-      title: "Signals, Sound, and Sensation",
-      publisher: "Springer Science & Business Media",
-      note: "Análisis matemático y físico de la percepción sonora y localización binaural.",
     },
   ];
 
@@ -169,7 +179,7 @@ export default function Home() {
             <Activity className="w-5 h-5 text-cyan-400" />
             <h2 className="text-xl font-bold text-white">Experimentos Disponibles</h2>
           </div>
-          <span className="text-xs font-mono text-slate-500">v1.1.0</span>
+          <span className="text-xs font-mono text-slate-500">v1.2.0</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -236,7 +246,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* SECCIÓN AGREGADA: Tabla de Correlatos Acústicos vs. Psicoacústicos */}
+      {/* Tabla de Correlatos Acústicos vs. Psicoacústicos */}
       <section id="correlatos" className="py-12 px-4 max-w-5xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div className="flex items-center gap-2">

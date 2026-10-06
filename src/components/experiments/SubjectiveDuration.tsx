@@ -1,0 +1,207 @@
+"use client";
+
+import { useState, useRef, useCallback } from "react";
+import { calculateSubjectiveDuration } from "@/lib/greyData";
+import { registerAudioContext } from "@/lib/audioRegistry";
+import { Play, Clock, Sparkles, AlertCircle } from "lucide-react";
+
+interface SubjectiveDurationProps {
+  cursorPos: { x: number; y: number; z: number };
+}
+
+export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProps) {
+  const [physicalTime, setPhysicalTime] = useState(5); // Segundos reales
+  const [density, setDensity] = useState(4); // Eventos por segundo
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [mode, setMode] = useState<"static" | "complex">("complex");
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Mapeo de parámetros 3D de Grey a variables psicoacústicas
+  const brightness = Math.max(0, (cursorPos.y + 1) / 2); // 0 a 1
+  const instability = Math.max(0, (cursorPos.z + 1) / 2); // 0 a 1
+
+  const subjectiveTime = calculateSubjectiveDuration(
+    physicalTime,
+    mode === "static" ? 1 : density,
+    mode === "static" ? 0 : instability,
+    mode === "static" ? 0.2 : brightness
+  );
+
+  const playExperimentAudio = useCallback(() => {
+    if (isPlaying) return;
+
+    const ctx = new (window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+
+    registerAudioContext(ctx);
+    audioCtxRef.current = ctx;
+
+    setIsPlaying(true);
+
+    const now = ctx.currentTime;
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.3, now);
+    master.connect(ctx.destination);
+
+    const totalDuration = physicalTime;
+    const currentDensity = mode === "static" ? 1 : density;
+    const interval = 1 / currentDensity;
+
+    let eventTime = 0;
+    while (eventTime < totalDuration) {
+      const startTime = now + eventTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      // Frecuencia base y armónicos según inestabilidad
+      const freqOffset = mode === "complex" ? (Math.random() - 0.5) * instability * 200 : 0;
+      osc.frequency.setValueAtTime(220 + freqOffset, startTime);
+
+      // Filtro según brillo (Eje I de Grey)
+      const cutoff = mode === "complex" ? 300 + brightness * 5000 : 800;
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(cutoff, startTime);
+
+      // Envolvente de volumen (Transitorio / Ataque de Grey)
+      const attackTime = mode === "complex" ? Math.max(0.005, (1 - cursorPos.x) * 0.05) : 0.02;
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.2, startTime + attackTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + Math.min(interval, 0.4));
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+
+      osc.start(startTime);
+      osc.stop(startTime + Math.min(interval, 0.4));
+
+      eventTime += interval;
+    }
+
+    setTimeout(() => {
+      setIsPlaying(false);
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close();
+      }
+    }, totalDuration * 1000 + 200);
+  }, [physicalTime, density, instability, brightness, cursorPos.x, mode, isPlaying]);
+
+  const dilationPercentage = Math.round(((subjectiveTime - physicalTime) / physicalTime) * 100);
+
+  return (
+    <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 space-y-6 shadow-xl">
+      <div className="flex items-center justify-between border-b border-slate-900 pb-3">
+        <div className="flex items-center gap-2">
+          <Clock className="w-5 h-5 text-amber-400" />
+          <h3 className="font-bold text-slate-100 text-sm">
+            Psicoacústica de la Duración Subjetiva (Freiberg)
+          </h3>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMode("static")}
+            className={`px-3 py-1 rounded text-xs font-mono transition-all ${
+              mode === "static"
+                ? "bg-slate-800 text-white font-bold border border-slate-700"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Estímulo A (Simple)
+          </button>
+          <button
+            onClick={() => setMode("complex")}
+            className={`px-3 py-1 rounded text-xs font-mono transition-all ${
+              mode === "complex"
+                ? "bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Estímulo B (Complejo)
+          </button>
+        </div>
+      </div>
+
+      {/* Visualizador Comparativo de Tiempo Físico vs Percibido */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-900/60 p-4 rounded-lg border border-slate-800">
+        <div>
+          <span className="text-[11px] font-mono text-slate-400 block mb-1">
+            DURACIÓN FÍSICA (Reloj)
+          </span>
+          <div className="text-2xl font-mono font-bold text-slate-200">
+            {physicalTime.toFixed(1)} <span className="text-xs text-slate-500">seg</span>
+          </div>
+        </div>
+        <div>
+          <span className="text-[11px] font-mono text-amber-400 block mb-1">
+            DURACIÓN PERCIBIDA ESTIMADA
+          </span>
+          <div className="text-2xl font-mono font-bold text-amber-400 flex items-center gap-2">
+            {subjectiveTime.toFixed(1)} <span className="text-xs text-slate-500">seg</span>
+            {dilationPercentage > 0 && (
+              <span className="text-xs bg-amber-500/20 text-amber-300 font-mono px-2 py-0.5 rounded border border-amber-500/30">
+                +{dilationPercentage}% Dilatación
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Sliders de Parámetros */}
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs font-mono">
+            <span className="text-slate-300">Duración Real del Intervalo</span>
+            <span className="text-slate-400">{physicalTime} seg</span>
+          </div>
+          <input
+            type="range"
+            min="2"
+            max="12"
+            step="0.5"
+            value={physicalTime}
+            onChange={(e) => setPhysicalTime(parseFloat(e.target.value))}
+            className="w-full accent-amber-400 bg-slate-900 h-2 rounded cursor-pointer"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-xs font-mono">
+            <span className="text-slate-300">Densidad de Eventos (Pulsación)</span>
+            <span className="text-amber-400 font-bold">{density} ev/seg</span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            step="1"
+            disabled={mode === "static"}
+            value={density}
+            onChange={(e) => setDensity(parseInt(e.target.value))}
+            className="w-full accent-amber-400 bg-slate-900 h-2 rounded cursor-pointer disabled:opacity-30"
+          />
+        </div>
+      </div>
+
+      {/* Botón Escuchar Experimento */}
+      <button
+        onClick={playExperimentAudio}
+        disabled={isPlaying}
+        className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
+      >
+        <Play className="w-4 h-4 fill-current" />
+        {isPlaying ? "Reproduciendo Estímulo..." : `Reproducir Estímulo ${mode === "static" ? "A" : "B"}`}
+      </button>
+
+      {/* Nota Explicativa Freiberg */}
+      <div className="bg-amber-950/20 border border-amber-800/30 rounded-lg p-3 flex items-start gap-2.5 text-xs text-amber-200/80">
+        <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <p className="leading-relaxed">
+          <strong>Ley de Freiberg:</strong> A mayor cantidad de micro-eventos, brillo frecuencial e inestabilidad del timbre, el cerebro dedica mayor carga de memoria perceptual, haciendo que el tiempo parezca **transcurrir más lentamente (efecto de tiempo lleno)**.
+        </p>
+      </div>
+    </div>
+  );
+}
