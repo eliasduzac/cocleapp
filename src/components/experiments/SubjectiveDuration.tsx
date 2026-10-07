@@ -10,17 +10,18 @@ interface SubjectiveDurationProps {
 }
 
 export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProps) {
-  const [physicalTime, setPhysicalTime] = useState(5); // Segundos reales
-  const [density, setDensity] = useState(4); // Eventos por segundo
+  const [physicalTime, setPhysicalTime] = useState(5);
+  const [density, setDensity] = useState(4);
   const [isPlaying, setIsPlaying] = useState(false);
   const [mode, setMode] = useState<"static" | "complex">("complex");
-  const [sustain, setSustain] = useState(0.95); // Sostén del sonido (0.2 staccato a 1.0 legato)
+  const [sustain, setSustain] = useState(0.95);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Mapeo de parámetros 3D a variables psicoacústicas
-  const brightness = Math.max(0, (cursorPos.y + 1) / 2); // 0 a 1
-  const instability = Math.max(0, (cursorPos.z + 1) / 2); // 0 a 1
+  // Normalización de coordenadas 3D (-1 a 1 -> 0 a 1)
+  const attack = Math.max(0, (cursorPos.x + 1) / 2);
+  const brightness = Math.max(0, (cursorPos.y + 1) / 2);
+  const instability = Math.max(0, (cursorPos.z + 1) / 2);
 
   const subjectiveTime = calculateSubjectiveDuration(
     physicalTime,
@@ -42,37 +43,33 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
 
     const now = ctx.currentTime;
     const master = ctx.createGain();
-    master.gain.setValueAtTime(0.25, now);
+    master.gain.setValueAtTime(0.2, now);
     master.connect(ctx.destination);
 
     const totalDuration = physicalTime;
 
     if (mode === "static") {
-      // ESTÍMULO A: Tono ÚNICO y CONTINUO de 5 segundos completos (Sin interrupciones)
+      // ESTÍMULO A: Tono senoidal simple y continuo (Sin armónicos ni variaciones)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
 
+      osc.type = "sine";
       osc.frequency.setValueAtTime(220, now);
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(600, now);
 
-      // Envolvente fluida de entrada y salida
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.2, now + 0.08);
-      gain.gain.setValueAtTime(0.2, now + totalDuration - 0.08);
+      gain.gain.linearRampToValueAtTime(0.2, now + 0.1);
+      gain.gain.setValueAtTime(0.2, now + totalDuration - 0.1);
       gain.gain.linearRampToValueAtTime(0, now + totalDuration);
 
-      osc.connect(filter);
-      filter.connect(gain);
+      osc.connect(gain);
       gain.connect(master);
 
       osc.start(now);
       osc.stop(now + totalDuration);
     } else {
-      // ESTÍMULO B: Tono modulado con densidad de eventos y envolvente sostenida (Legato)
+      // ESTÍMULO B: Síntesis armónica rica modelada por las coordenadas 3D de John Grey
       const interval = 1 / density;
-      const noteDuration = interval * sustain; // Duración efectiva de cada nota
+      const noteDuration = interval * sustain;
 
       let eventTime = 0;
       while (eventTime < totalDuration) {
@@ -82,21 +79,24 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
 
-        // Frecuencia base + inestabilidad tímbrica (Eje Z de Grey)
-        const freqOffset = (Math.random() - 0.5) * instability * 220;
+        // Onda rica en armónicos (sawtooth) para permitir filtrado de timbre real
+        osc.type = "sawtooth";
+
+        // Frecuencia base + Inestabilidad tímbrica (Eje Z)
+        const freqOffset = (Math.random() - 0.5) * instability * 40;
         osc.frequency.setValueAtTime(220 + freqOffset, startTime);
 
-        // Brillo frecuencial (Eje Y de Grey)
-        const cutoff = 300 + brightness * 5500;
+        // Brillo frecuencial (Eje Y): Curva exponencial de 250 Hz (oscuro/flauta) a 7500 Hz (brillante/trompeta)
+        const cutoff = 250 + Math.pow(brightness, 2.2) * 7250;
         filter.type = "lowpass";
         filter.frequency.setValueAtTime(cutoff, startTime);
 
-        // Ataque (Eje X de Grey)
-        const attackTime = Math.max(0.005, (1 - cursorPos.x) * 0.08);
+        // Tiempo de ataque (Eje X): De percusivo/repentino (0.005s) a progresivo (0.12s)
+        const attackTime = Math.max(0.005, (1 - attack) * 0.12);
 
         gain.gain.setValueAtTime(0, startTime);
         gain.gain.linearRampToValueAtTime(0.2, startTime + attackTime);
-        gain.gain.setValueAtTime(0.2, startTime + noteDuration * 0.7);
+        gain.gain.setValueAtTime(0.2, startTime + Math.max(attackTime, noteDuration * 0.7));
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration);
 
         osc.connect(filter);
@@ -116,7 +116,7 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
         audioCtxRef.current.close();
       }
     }, totalDuration * 1000 + 200);
-  }, [physicalTime, density, instability, brightness, cursorPos.x, mode, isPlaying, sustain]);
+  }, [physicalTime, density, instability, brightness, attack, mode, isPlaying, sustain]);
 
   const dilationPercentage = Math.round(((subjectiveTime - physicalTime) / physicalTime) * 100);
 
