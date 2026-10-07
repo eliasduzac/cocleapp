@@ -17,6 +17,16 @@ export default function SubjectiveDuration() {
   const durasValue = calculateDuras(physicalTimeMs);
   const equivalentPauseMs = calculateEquivalentPauseMs(physicalTimeMs, soundType);
 
+  const stopPreviousAudio = useCallback(async () => {
+    if (audioCtxRef.current && audioCtxRef.current.state !== "closed") {
+      try {
+        await audioCtxRef.current.close();
+      } catch (e) {
+        console.error("Error al cerrar AudioContext previo", e);
+      }
+    }
+  }, []);
+
   const createSoundSource = (ctx: AudioContext, type: SoundType) => {
     if (type === "noise") {
       const bufferSize = ctx.sampleRate * 2;
@@ -37,8 +47,10 @@ export default function SubjectiveDuration() {
     }
   };
 
-  const playPulseVsPauseExperiment = useCallback(() => {
+  const playPulseVsPauseExperiment = useCallback(async () => {
     if (isPlayingExp1) return;
+    await stopPreviousAudio();
+
     setIsPlayingExp1(true);
 
     const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -86,10 +98,12 @@ export default function SubjectiveDuration() {
       setIsPlayingExp1(false);
       ctx.close();
     }, totalDuration * 1000);
-  }, [physicalTimeMs, equivalentPauseMs, soundType, isPlayingExp1]);
+  }, [physicalTimeMs, equivalentPauseMs, soundType, isPlayingExp1, stopPreviousAudio]);
 
-  const playMusicalExecutionExperiment = useCallback(() => {
+  const playMusicalExecutionExperiment = useCallback(async () => {
     if (isPlayingExp2) return;
+    await stopPreviousAudio();
+
     setIsPlayingExp2(true);
 
     const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
@@ -128,7 +142,7 @@ export default function SubjectiveDuration() {
       setIsPlayingExp2(false);
       ctx.close();
     }, offset * 1000 + 300);
-  }, [isPlayingExp2]);
+  }, [isPlayingExp2, stopPreviousAudio]);
 
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 space-y-8 shadow-2xl text-slate-100">

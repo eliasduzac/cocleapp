@@ -265,14 +265,19 @@ export default function TimbreSpace3D({ cursorPos, setCursorPos }: TimbreSpace3D
     ctx.stroke();
   }, [rotation, cursorPos, selectedInst, hoveredInst, project3D]);
 
-  // Controles de ratón: arrastrar para rotar y detectar hover
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Manejadores Pointer Events para interacción unificada Mouse/Touch
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
     setDragDistance(0);
+
+    // Capturar puntero para seguimiento fluido en pantallas táctiles
+    if (e.currentTarget.setPointerCapture) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -304,13 +309,16 @@ export default function TimbreSpace3D({ cursorPos, setCursorPos }: TimbreSpace3D
     }
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     setIsDragging(false);
+    if (e.currentTarget.releasePointerCapture) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   };
 
-  // Detección de Selección al hacer Clic directo en el Canvas
+  // Detección de Selección al hacer Clic o Toque directo sobre el Canvas
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (dragDistance > 6) return; // Si arrastró más de 6px, fue una rotación del cubo
+    if (dragDistance > 6) return; // Si arrastró más de 6px, fue rotación del cubo
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -325,7 +333,7 @@ export default function TimbreSpace3D({ cursorPos, setCursorPos }: TimbreSpace3D
     GREY_INSTRUMENTS.forEach((inst) => {
       const p = project3D(inst.position[0], inst.position[1], inst.position[2], canvas.width, canvas.height);
       const dist = Math.hypot(clickX - p.px, clickY - p.py);
-      if (dist <= 20 && dist < minDistance) {
+      if (dist <= 22 && dist < minDistance) {
         minDistance = dist;
         clickedInst = inst;
       }
@@ -365,23 +373,23 @@ export default function TimbreSpace3D({ cursorPos, setCursorPos }: TimbreSpace3D
         </button>
       </div>
 
-      {/* Cuadro Visual 3D Interactivo */}
+      {/* Cuadro Visual 3D Interactivo adaptado para Touch/Mouse */}
       <div className="relative rounded-lg overflow-hidden border border-slate-800 bg-slate-950 flex justify-center items-center">
         <canvas
           ref={canvasRef}
           width={460}
           height={320}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
           onClick={handleCanvasClick}
           className={`w-full h-auto max-w-[460px] touch-none ${
             hoveredInst ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"
           }`}
         />
         <div className="absolute bottom-2 left-2 text-[10px] font-mono text-slate-500 bg-slate-900/80 px-2 py-1 rounded border border-slate-800 pointer-events-none">
-          {hoveredInst ? `Hacé clic para seleccionar: ${hoveredInst.name}` : "Hacé clic en los círculos o arrastrá para rotar"}
+          {hoveredInst ? `Tocá/hacé clic para seleccionar: ${hoveredInst.name}` : "Deslizá para rotar o tocá los puntos"}
         </div>
       </div>
 
