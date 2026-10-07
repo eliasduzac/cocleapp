@@ -57,6 +57,9 @@ export function calculateDuras(physicalTimeMs: number): number {
   return Math.pow(tiSec, 0.6) * Math.pow(0.1, 0.4);
 }
 
+// Alias export para componentes que requieren calculateSubjectiveDuration
+export const calculateSubjectiveDuration = calculateDuras;
+
 /**
  * Calcula la duración de pausa físicamente equivalente (Tp)
  * para generar la misma sensación temporal que un impulso (Ti).
@@ -71,6 +74,4 @@ export function calculateEquivalentPauseMs(
   if (tiMs >= 1000) return tiMs;
   
   const maxFactor = soundType === "3200Hz" ? 4.0 : 2.0;
-  const ratio = 1 + (maxFactor - 1) * Math.pow((1000 - tiMs) / 950, 1.2);
-  return Math.min(1000, Math.round(tiMs * ratio));
-}
+  const ratio = 1 + (maxFactor - 1) * Math.pow((10
