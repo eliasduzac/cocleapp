@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { GREY_INSTRUMENTS, InstrumentNode } from "@/lib/greyData";
-import { Move3d, RotateCw, Volume2 } from "lucide-react";
+import { Move3d } from "lucide-react";
 
 interface TimbreSpace3DProps {
   onSelectInstrument: (inst: InstrumentNode) => void;
@@ -21,16 +21,14 @@ export default function TimbreSpace3D({
   const [angleX, setAngleX] = useState(-0.4);
   const [angleY, setAngleY] = useState(0.6);
   const isDraggingRef = useRef(false);
-  const lastMouseRef = useRef({ x: 0, y: 0 });
+  const lastPointerRef = useRef({ x: 0, y: 0 });
 
   // Proyección 3D a 2D
   const project = useCallback(
     (x: number, y: number, z: number, width: number, height: number) => {
-      // Rotación en Y
       const x1 = x * Math.cos(angleY) + z * Math.sin(angleY);
       const z1 = -x * Math.sin(angleY) + z * Math.cos(angleY);
 
-      // Rotación en X
       const y2 = y * Math.cos(angleX) - z1 * Math.sin(angleX);
       const z2 = y * Math.sin(angleX) + z1 * Math.cos(angleX);
 
@@ -151,34 +149,45 @@ export default function TimbreSpace3D({
     ctx.stroke();
   }, [angleX, angleY, selectedInst, cursorPos, project]);
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Manejadores unificados para Mouse y Pantallas Táctiles (Pointer Events)
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     isDraggingRef.current = true;
-    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    lastPointerRef.current = { x: e.clientX, y: e.clientY };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDraggingRef.current) return;
-    const dx = e.clientX - lastMouseRef.current.x;
-    const dy = e.clientY - lastMouseRef.current.y;
-    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    const dx = e.clientX - lastPointerRef.current.x;
+    const dy = e.clientY - lastPointerRef.current.y;
+    lastPointerRef.current = { x: e.clientX, y: e.clientY };
 
     setAngleY((prev) => prev + dx * 0.01);
     setAngleX((prev) => Math.max(-1.2, Math.min(1.2, prev + dy * 0.01)));
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDraggingRef.current) return;
     isDraggingRef.current = false;
+    try {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+
+    // Escalado adaptativo de coordenadas de pantalla a resolución interna del canvas
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
 
     let closest: InstrumentNode | null = null;
-    let minDist = 20;
+    let minDist = 32; // Rango de toque más amplio para mayor facilidad en dedos
 
     GREY_INSTRUMENTS.forEach((inst) => {
       const { px, py } = project(inst.x, inst.y, inst.z, canvas.width, canvas.height);
@@ -191,7 +200,11 @@ export default function TimbreSpace3D({
 
     if (closest) {
       onSelectInstrument(closest);
-      setCursorPos({ x: (closest as InstrumentNode).x, y: (closest as InstrumentNode).y, z: (closest as InstrumentNode).z });
+      setCursorPos({
+        x: (closest as InstrumentNode).x,
+        y: (closest as InstrumentNode).y,
+        z: (closest as InstrumentNode).z,
+      });
     }
   };
 
@@ -201,7 +214,7 @@ export default function TimbreSpace3D({
         <div className="flex items-center gap-2">
           <Move3d className="w-5 h-5 text-cyan-400" />
           <h3 className="font-bold text-slate-100 text-sm">
-            Espacio Timbríco 3D de John Grey (1977)
+            Espacio Tímbrico 3D de John Grey (1977)
           </h3>
         </div>
         <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
@@ -216,27 +229,28 @@ export default function TimbreSpace3D({
           ref={canvasRef}
           width={650}
           height={400}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
           onClick={handleCanvasClick}
-          className="w-full h-80 bg-slate-950 rounded-lg cursor-grab active:cursor-grabbing border border-slate-900"
+          className="w-full h-72 sm:h-80 bg-slate-950 rounded-lg cursor-grab active:cursor-grabbing border border-slate-900 touch-none select-none"
         />
         <div className="absolute bottom-2 left-2 text-[10px] font-mono text-slate-500 bg-slate-900/80 px-2 py-1 rounded">
-          Arrastrá para rotar | Clic en un nodo para seleccionar
+          Arrastrá para rotar | Tocá en un nodo para seleccionar
         </div>
       </div>
 
       {/* Controles de Interpolación de Posición manual */}
       <div className="space-y-3 pt-2 border-t border-slate-900">
-        <div className="text-xs font-mono text-slate-400 flex items-center justify-between">
+        <div className="text-xs font-mono text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
           <span>Interpolador de Timbre Síntesis MDS</span>
           <span className="text-amber-400 font-bold">
             Posición: ({cursorPos.x.toFixed(2)}, {cursorPos.y.toFixed(2)}, {cursorPos.z.toFixed(2)})
           </span>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="text-[10px] font-mono text-rose-400 block mb-1">Eje X (Transitorio)</label>
             <input
