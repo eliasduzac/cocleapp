@@ -1,23 +1,23 @@
+"use client";
+
 import TimbreDurationExperiment from "@/components/experiments/TimbreDurationExperiment";
 
-export const metadata = {
-  title: "Timbre y Duración Subjetiva | Experimentos Psicoacústicos",
-  description: "Explora el espacio timbríco 3D de John Grey (1977) y la ilusión de duración subjetiva de Freiberg.",
-};
-
-export default function TimbreDurationPage() {
+export default function TimbreDuracionPage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-10 space-y-8 max-w-7xl mx-auto">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-          Laboratorio de Timbre y Tiempo
-        </h1>
-        <p className="text-sm text-slate-400 max-w-2xl">
-          Interactuá con el mapa tridimensional de instrumentos de John Grey (1977) para modelar timbres sintéticos y comprobar cómo la complejidad espectral altera la percepción del tiempo.
-        </p>
-      </div>
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12">
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+            Laboratorio de Psicoacústica: Timbre y Duración Subjetiva
+          </h1>
+          <p className="mt-2 text-sm text-slate-400 max-w-3xl">
+            Experimentos interactivos fundamentados en las investigaciones del Dr. Pablo M. Freiberg.
+            Explora la cuantificación de la duración subjetiva en <strong>duras</strong>, el efecto del post-enmascaramiento (L<sub>E</sub>) y el espacio tímbrico multidimensional de John Grey.
+          </p>
+        </div>
 
-      <TimbreDurationExperiment />
+        <TimbreDurationExperiment />
+      </div>
     </main>
   );
 }

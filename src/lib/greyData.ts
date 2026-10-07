@@ -1,47 +1,76 @@
-export interface InstrumentNode {
+export interface Instrument3D {
   id: string;
   name: string;
-  family: string;
-  // Coordenadas normalizadas (-1 a 1) basadas en el gráfico 3D de Grey (1977)
-  x: number; // Ataque / Inarmronicidad transitoria (Eje II)
-  y: number; // Centroide Espectral / Brillo (Eje I)
-  z: number; // Fluctuación Espectral / Inestabilidad (Eje III)
+  code: string;
+  position: [number, number, number]; // [X: Ataque/Flujo, Y: Brillo, Z: Transitorios]
+  attackNoise: number; // Nivel de transitorio ruidoso al inicio (Eje Z)
+  harmonicDelay: boolean; // Para instrumentos como el Oboe (armónicos entran antes)
 }
 
-export const GREY_INSTRUMENTS: InstrumentNode[] = [
-  { id: "FH", name: "French Horn (Corno)", family: "Metales", x: 0.2, y: 0.9, z: -0.6 },
-  { id: "TP", name: "Trumpet (Trompeta)", family: "Metales", x: 0.7, y: 0.3, z: -0.1 },
-  { id: "TM", name: "Trombone (Trombón)", family: "Metales", x: 0.5, y: -0.7, z: 0.8 },
-  { id: "BN", name: "Bassoon (Fagot)", family: "Maderas", x: -0.4, y: 0.5, z: 0.2 },
-  { id: "EH", name: "English Horn (Corno Inglés)", family: "Maderas", x: -0.6, y: -0.2, z: -0.3 },
-  { id: "O1", name: "Oboe 1", family: "Maderas", x: -0.2, y: -0.3, z: 0.4 },
-  { id: "O2", name: "Oboe 2", family: "Maderas", x: -0.1, y: -0.6, z: 0.5 },
-  { id: "C1", name: "Clarinet 1", family: "Maderas", x: -0.5, y: 0.1, z: -0.7 },
-  { id: "C2", name: "Clarinet 2", family: "Maderas", x: -0.3, y: 0.7, z: -0.5 },
-  { id: "FL", name: "Flute (Flauta)", family: "Maderas", x: 0.8, y: 0.2, z: -0.8 },
-  { id: "S1", name: "String 1 (Cuerda Sul Tasto)", family: "Cuerdas", x: -0.8, y: 0.1, z: -0.4 },
-  { id: "S2", name: "String 2 (Cuerda Ordinario)", family: "Cuerdas", x: -0.7, y: 0.5, z: -0.2 },
-  { id: "S3", name: "String 3 (Cuerda Ponticello)", family: "Cuerdas", x: -0.6, y: 0.8, z: 0.1 },
-  { id: "X1", name: "Saxophone 1", family: "Maderas", x: -0.2, y: 0.4, z: -0.2 },
-  { id: "X2", name: "Saxophone 2", family: "Maderas", x: -0.3, y: 0.6, z: -0.1 },
-  { id: "X3", name: "Saxophone 3", family: "Maderas", x: -0.4, y: 0.0, z: -0.3 },
+export const GREY_INSTRUMENTS: Instrument3D[] = [
+  {
+    id: "flute",
+    name: "Flauta (FL)",
+    code: "FL",
+    position: [0.6, 0.2, 0.8], // Poco brillo, ataque progresivo, ALTO transitorio de soplo
+    attackNoise: 0.7,
+    harmonicDelay: false,
+  },
+  {
+    id: "oboe",
+    name: "Oboe (O1)",
+    code: "O1",
+    position: [-0.2, -0.4, 0.3], // Brillo medio-alto, entrada asincrónica de armónicos
+    attackNoise: 0.2,
+    harmonicDelay: true, // 2do armónico entra 5ms antes, fundamental 8ms después
+  },
+  {
+    id: "trumpet",
+    name: "Trompeta (TP)",
+    code: "TP",
+    position: [-0.7, -0.8, -0.2], // Muy brillante, ataque percusivo/sincrónico
+    attackNoise: 0.1,
+    harmonicDelay: false,
+  },
+  {
+    id: "french_horn",
+    name: "Corno Francés (FH)",
+    code: "FH",
+    position: [0.1, 0.7, -0.5], // Opaco, ataque suave
+    attackNoise: 0.05,
+    harmonicDelay: false,
+  },
 ];
 
 /**
- * Lógica de Duración Subjetiva según la teoría psicoacústica de Freiberg.
- * Calcula el tiempo percibido estimado según la carga de procesamiento perceptual.
+ * Calcula la duración subjetiva en "duras" (D)
+ * 1 dura = sensación de 1s para un tono de 1kHz a 60dB.
+ * Para Ti >= 100ms: proporcionalidad lineal.
+ * Para Ti < 100ms: la duración subjetiva cae menos rápidamente.
  */
-export function calculateSubjectiveDuration(
-  physicalSeconds: number,
-  density: number,      // Eventos por segundo (1 a 10)
-  instability: number,  // Fluctuación espectral (0 a 1)
-  brightness: number    // Centroide / Agudos (0 a 1)
-): number {
-  // Coeficientes psicoacústicos de dilatación temporal
-  const densityFactor = (density - 1) * 0.08;
-  const instabilityFactor = instability * 0.35;
-  const brightnessFactor = brightness * 0.15;
+export function calculateDuras(physicalTimeMs: number): number {
+  const tiSec = physicalTimeMs / 1000;
+  if (physicalTimeMs >= 100) {
+    return tiSec;
+  }
+  // Curva logarítmica ajustada a la gráfica de Freiberg (Slide 9)
+  return Math.pow(tiSec, 0.6) * Math.pow(0.1, 0.4);
+}
 
-  const dilationMultiplier = 1 + densityFactor + instabilityFactor + brightnessFactor;
-  return Number((physicalSeconds * dilationMultiplier).toFixed(2));
+/**
+ * Calcula la duración de pausa físicamente equivalente (Tp)
+ * para generar la misma sensación temporal que un impulso (Ti).
+ * A 3200 Hz: Ti = 100ms se percibe igual a Tp = 400ms (Factor 4).
+ * A 200 Hz / Ruido Blanco: Ti = 100ms se percibe igual a Tp = 200ms (Factor 2).
+ * A más de 1s: Ti y Tp coinciden (Factor 1).
+ */
+export function calculateEquivalentPauseMs(
+  tiMs: number,
+  soundType: "3200Hz" | "200Hz" | "noise"
+): number {
+  if (tiMs >= 1000) return tiMs;
+  
+  const maxFactor = soundType === "3200Hz" ? 4.0 : 2.0;
+  const ratio = 1 + (maxFactor - 1) * Math.pow((1000 - tiMs) / 950, 1.2);
+  return Math.min(1000, Math.round(tiMs * ratio));
 }
