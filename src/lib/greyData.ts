@@ -72,6 +72,8 @@ export function calculateEquivalentPauseMs(
   soundType: "3200Hz" | "200Hz" | "noise"
 ): number {
   if (tiMs >= 1000) return tiMs;
-  
+
   const maxFactor = soundType === "3200Hz" ? 4.0 : 2.0;
-  const ratio = 1 + (maxFactor - 1) * Math.pow((10
+  const ratio = 1 + (maxFactor - 1) * Math.pow((1000 - tiMs) / 950, 1.2);
+  return Math.min(1000, Math.round(tiMs * ratio));
+}
