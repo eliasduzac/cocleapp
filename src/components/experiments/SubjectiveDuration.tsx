@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { calculateSubjectiveDuration } from "@/lib/greyData";
 import { registerAudioContext } from "@/lib/audioRegistry";
-import { Play, Clock, Sparkles } from "lucide-react";
+import { Play, Clock, Sparkles, Volume2 } from "lucide-react";
 
 interface SubjectiveDurationProps {
   cursorPos: { x: number; y: number; z: number };
@@ -42,32 +42,45 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
     setIsPlaying(true);
 
     const now = ctx.currentTime;
+    
+    // Master Gain y Filtro Maestro Anti-Estridencia (Corta picos digitales arriba de 5.5kHz)
     const master = ctx.createGain();
+    const antiHarshnessFilter = ctx.createBiquadFilter();
+    antiHarshnessFilter.type = "lowpass";
+    antiHarshnessFilter.frequency.setValueAtTime(5500, now);
+
     master.gain.setValueAtTime(0.2, now);
-    master.connect(ctx.destination);
+    master.connect(antiHarshnessFilter);
+    antiHarshnessFilter.connect(ctx.destination);
 
     const totalDuration = physicalTime;
 
     if (mode === "static") {
-      // ESTÍMULO A: Tono senoidal simple y continuo (Sin armónicos ni variaciones)
+      // ESTÍMULO A: Tono cálido orgánico continuo (Sin asperezas)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
+      const bodyFilter = ctx.createBiquadFilter();
 
       osc.type = "sine";
       osc.frequency.setValueAtTime(220, now);
 
+      // Resonancia de cuerpo suave
+      bodyFilter.type = "lowpass";
+      bodyFilter.frequency.setValueAtTime(800, now);
+
       gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.2, now + 0.1);
-      gain.gain.setValueAtTime(0.2, now + totalDuration - 0.1);
+      gain.gain.linearRampToValueAtTime(0.2, now + 0.15);
+      gain.gain.setValueAtTime(0.2, now + totalDuration - 0.15);
       gain.gain.linearRampToValueAtTime(0, now + totalDuration);
 
-      osc.connect(gain);
+      osc.connect(bodyFilter);
+      bodyFilter.connect(gain);
       gain.connect(master);
 
       osc.start(now);
       osc.stop(now + totalDuration);
     } else {
-      // ESTÍMULO B: Síntesis armónica rica modelada por las coordenadas 3D de John Grey
+      // ESTÍMULO B: Síntesis Orgánica Acústica Multi-Filtro
       const interval = 1 / density;
       const noteDuration = interval * sustain;
 
@@ -75,36 +88,67 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
       while (eventTime < totalDuration) {
         const startTime = now + eventTime;
 
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
+        // 1. Oscilador 1: Onda Fundamental Cálida (Triangle)
+        const oscFund = ctx.createOscillator();
+        oscFund.type = "triangle";
 
-        // Onda rica en armónicos (sawtooth) para permitir filtrado de timbre real
-        osc.type = "sawtooth";
+        // 2. Oscilador 2: Riqueza Armónica (Sawtooth filtrado)
+        const oscHarm = ctx.createOscillator();
+        oscHarm.type = "sawtooth";
 
-        // Frecuencia base + Inestabilidad tímbrica (Eje Z)
-        const freqOffset = (Math.random() - 0.5) * instability * 40;
-        osc.frequency.setValueAtTime(220 + freqOffset, startTime);
+        const fundGain = ctx.createGain();
+        const harmGain = ctx.createGain();
+        const noteGain = ctx.createGain();
 
-        // Brillo frecuencial (Eje Y): Curva exponencial de 250 Hz (oscuro/flauta) a 7500 Hz (brillante/trompeta)
-        const cutoff = 250 + Math.pow(brightness, 2.2) * 7250;
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(cutoff, startTime);
+        // Mezcla: Más brillo = más peso a la onda armónica
+        fundGain.gain.setValueAtTime(0.7, startTime);
+        harmGain.gain.setValueAtTime(0.15 + brightness * 0.45, startTime);
 
-        // Tiempo de ataque (Eje X): De percusivo/repentino (0.005s) a progresivo (0.12s)
-        const attackTime = Math.max(0.005, (1 - attack) * 0.12);
+        // Frecuencia base + Inestabilidad tímbrica (Eje Z de Grey)
+        const freqOffset = (Math.random() - 0.5) * instability * 35;
+        const noteFreq = 220 + freqOffset;
 
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.2, startTime + attackTime);
-        gain.gain.setValueAtTime(0.2, startTime + Math.max(attackTime, noteDuration * 0.7));
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration);
+        oscFund.frequency.setValueAtTime(noteFreq, startTime);
+        oscHarm.frequency.setValueAtTime(noteFreq, startTime);
 
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(master);
+        // --- CADENA DE FILTROS ACÚSTICOS ---
+        
+        // Filtro A: Brillo / Centroide Espectral (Eje Y de Grey)
+        const brightnessFilter = ctx.createBiquadFilter();
+        brightnessFilter.type = "lowpass";
+        const cutoff = 300 + Math.pow(brightness, 2.5) * 4500; // Curva suave no estridente
+        brightnessFilter.frequency.setValueAtTime(cutoff, startTime);
 
-        osc.start(startTime);
-        osc.stop(startTime + noteDuration);
+        // Filtro B: Resonancia de Caja Acústica / Formante (Cuerpo de madera/metal)
+        const bodyResonance = ctx.createBiquadFilter();
+        bodyResonance.type = "peaking";
+        bodyResonance.frequency.setValueAtTime(900, startTime); // Frecuencia tímbrica natural
+        bodyResonance.Q.setValueAtTime(1.8, startTime);
+        bodyResonance.gain.setValueAtTime(4, startTime); // Realce de formante orgánico
+
+        // --- ENVOLVENTE ADSR (Eje X: Ataque) ---
+        const attackTime = Math.max(0.01, (1 - attack) * 0.14);
+
+        noteGain.gain.setValueAtTime(0, startTime);
+        noteGain.gain.linearRampToValueAtTime(0.2, startTime + attackTime);
+        noteGain.gain.setValueAtTime(0.2, startTime + Math.max(attackTime, noteDuration * 0.65));
+        noteGain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration);
+
+        // Ruteo del instrumento
+        oscFund.connect(fundGain);
+        oscHarm.connect(harmGain);
+
+        fundGain.connect(brightnessFilter);
+        harmGain.connect(brightnessFilter);
+
+        brightnessFilter.connect(bodyResonance);
+        bodyResonance.connect(noteGain);
+        noteGain.connect(master);
+
+        oscFund.start(startTime);
+        oscHarm.start(startTime);
+        oscFund.stop(startTime + noteDuration);
+        oscHarm.stop(startTime + noteDuration);
 
         eventTime += interval;
       }
@@ -244,11 +288,11 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
           : `Reproducir Estímulo ${mode === "static" ? "A (Continuo)" : "B (Complejo)"}`}
       </button>
 
-      {/* Nota Explicativa Freiberg */}
+      {/* Nota Explicativa */}
       <div className="bg-amber-950/20 border border-amber-800/30 rounded-lg p-3 flex items-start gap-2.5 text-xs text-amber-200/80">
         <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <p className="leading-relaxed">
-          <strong>Ley de Freiberg:</strong> Un tono continuo e inalterado genera poca carga cognitiva (tiempo vacío). En cambio, eventos sostenidos con variaciones de brillo e inestabilidad obligan al cerebro a almacenar múltiples marcas en la memoria, haciendo que el tiempo parezca **transcurrir más lentamente**.
+          <strong>Síntesis Orgánica Activa:</strong> Se aplican filtros de resonancia de cuerpo (formantes) y filtrado de agudos estridentes para simular timbres acústicos reales (flautas, maderas y metales) en lugar de ondas sintéticas puras.
         </p>
       </div>
     </div>
