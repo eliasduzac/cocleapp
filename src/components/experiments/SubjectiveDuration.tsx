@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { calculateSubjectiveDuration } from "@/lib/greyData";
 import { registerAudioContext } from "@/lib/audioRegistry";
-import { Play, Clock, Sparkles, AlertCircle } from "lucide-react";
+import { Play, Clock, Sparkles } from "lucide-react";
 
 interface SubjectiveDurationProps {
   cursorPos: { x: number; y: number; z: number };
@@ -14,10 +14,11 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
   const [density, setDensity] = useState(4); // Eventos por segundo
   const [isPlaying, setIsPlaying] = useState(false);
   const [mode, setMode] = useState<"static" | "complex">("complex");
+  const [sustain, setSustain] = useState(0.95); // Sostén del sonido (0.2 staccato a 1.0 legato)
 
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // Mapeo de parámetros 3D de Grey a variables psicoacústicas
+  // Mapeo de parámetros 3D a variables psicoacústicas
   const brightness = Math.max(0, (cursorPos.y + 1) / 2); // 0 a 1
   const instability = Math.max(0, (cursorPos.z + 1) / 2); // 0 a 1
 
@@ -41,44 +42,72 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
 
     const now = ctx.currentTime;
     const master = ctx.createGain();
-    master.gain.setValueAtTime(0.3, now);
+    master.gain.setValueAtTime(0.25, now);
     master.connect(ctx.destination);
 
     const totalDuration = physicalTime;
-    const currentDensity = mode === "static" ? 1 : density;
-    const interval = 1 / currentDensity;
 
-    let eventTime = 0;
-    while (eventTime < totalDuration) {
-      const startTime = now + eventTime;
-
+    if (mode === "static") {
+      // ESTÍMULO A: Tono ÚNICO y CONTINUO de 5 segundos completos (Sin interrupciones)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       const filter = ctx.createBiquadFilter();
 
-      // Frecuencia base y armónicos según inestabilidad
-      const freqOffset = mode === "complex" ? (Math.random() - 0.5) * instability * 200 : 0;
-      osc.frequency.setValueAtTime(220 + freqOffset, startTime);
-
-      // Filtro según brillo (Eje I de Grey)
-      const cutoff = mode === "complex" ? 300 + brightness * 5000 : 800;
+      osc.frequency.setValueAtTime(220, now);
       filter.type = "lowpass";
-      filter.frequency.setValueAtTime(cutoff, startTime);
+      filter.frequency.setValueAtTime(600, now);
 
-      // Envolvente de volumen (Transitorio / Ataque de Grey)
-      const attackTime = mode === "complex" ? Math.max(0.005, (1 - cursorPos.x) * 0.05) : 0.02;
-      gain.gain.setValueAtTime(0, startTime);
-      gain.gain.linearRampToValueAtTime(0.2, startTime + attackTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + Math.min(interval, 0.4));
+      // Envolvente fluida de entrada y salida
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.2, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now + totalDuration - 0.08);
+      gain.gain.linearRampToValueAtTime(0, now + totalDuration);
 
       osc.connect(filter);
       filter.connect(gain);
       gain.connect(master);
 
-      osc.start(startTime);
-      osc.stop(startTime + Math.min(interval, 0.4));
+      osc.start(now);
+      osc.stop(now + totalDuration);
+    } else {
+      // ESTÍMULO B: Tono modulado con densidad de eventos y envolvente sostenida (Legato)
+      const interval = 1 / density;
+      const noteDuration = interval * sustain; // Duración efectiva de cada nota
 
-      eventTime += interval;
+      let eventTime = 0;
+      while (eventTime < totalDuration) {
+        const startTime = now + eventTime;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        // Frecuencia base + inestabilidad tímbrica (Eje Z de Grey)
+        const freqOffset = (Math.random() - 0.5) * instability * 220;
+        osc.frequency.setValueAtTime(220 + freqOffset, startTime);
+
+        // Brillo frecuencial (Eje Y de Grey)
+        const cutoff = 300 + brightness * 5500;
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(cutoff, startTime);
+
+        // Ataque (Eje X de Grey)
+        const attackTime = Math.max(0.005, (1 - cursorPos.x) * 0.08);
+
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.2, startTime + attackTime);
+        gain.gain.setValueAtTime(0.2, startTime + noteDuration * 0.7);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(master);
+
+        osc.start(startTime);
+        osc.stop(startTime + noteDuration);
+
+        eventTime += interval;
+      }
     }
 
     setTimeout(() => {
@@ -87,7 +116,7 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
         audioCtxRef.current.close();
       }
     }, totalDuration * 1000 + 200);
-  }, [physicalTime, density, instability, brightness, cursorPos.x, mode, isPlaying]);
+  }, [physicalTime, density, instability, brightness, cursorPos.x, mode, isPlaying, sustain]);
 
   const dilationPercentage = Math.round(((subjectiveTime - physicalTime) / physicalTime) * 100);
 
@@ -109,7 +138,7 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
                 : "text-slate-400 hover:text-slate-200"
             }`}
           >
-            Estímulo A (Simple)
+            Estímulo A (Continuo)
           </button>
           <button
             onClick={() => setMode("complex")}
@@ -183,6 +212,24 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
             className="w-full accent-amber-400 bg-slate-900 h-2 rounded cursor-pointer disabled:opacity-30"
           />
         </div>
+
+        {mode === "complex" && (
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs font-mono">
+              <span className="text-slate-300">Sostén de Sonido (Legato vs Staccato)</span>
+              <span className="text-amber-400 font-bold">{Math.round(sustain * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min="0.2"
+              max="1.0"
+              step="0.05"
+              value={sustain}
+              onChange={(e) => setSustain(parseFloat(e.target.value))}
+              className="w-full accent-amber-400 bg-slate-900 h-2 rounded cursor-pointer"
+            />
+          </div>
+        )}
       </div>
 
       {/* Botón Escuchar Experimento */}
@@ -192,14 +239,16 @@ export default function SubjectiveDuration({ cursorPos }: SubjectiveDurationProp
         className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-sm transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer"
       >
         <Play className="w-4 h-4 fill-current" />
-        {isPlaying ? "Reproduciendo Estímulo..." : `Reproducir Estímulo ${mode === "static" ? "A" : "B"}`}
+        {isPlaying
+          ? "Reproduciendo Estímulo..."
+          : `Reproducir Estímulo ${mode === "static" ? "A (Continuo)" : "B (Complejo)"}`}
       </button>
 
       {/* Nota Explicativa Freiberg */}
       <div className="bg-amber-950/20 border border-amber-800/30 rounded-lg p-3 flex items-start gap-2.5 text-xs text-amber-200/80">
         <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
         <p className="leading-relaxed">
-          <strong>Ley de Freiberg:</strong> A mayor cantidad de micro-eventos, brillo frecuencial e inestabilidad del timbre, el cerebro dedica mayor carga de memoria perceptual, haciendo que el tiempo parezca **transcurrir más lentamente (efecto de tiempo lleno)**.
+          <strong>Ley de Freiberg:</strong> Un tono continuo e inalterado genera poca carga cognitiva (tiempo vacío). En cambio, eventos sostenidos con variaciones de brillo e inestabilidad obligan al cerebro a almacenar múltiples marcas en la memoria, haciendo que el tiempo parezca **transcurrir más lentamente**.
         </p>
       </div>
     </div>
